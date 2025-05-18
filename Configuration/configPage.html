@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Custom Tabs</title>
+</head>
+<body>
+    <div id="CustomTabsConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-input,emby-toggle,emby-select">
+        <div data-role="content">
+            <div class="content-primary">
+                <form class="customTabsForm">
+                    <div class="verticalSection verticalSection-extrabottompadding">
+                        <h2 class="sectionTitle">Custom Tabs Configuration</h2>
+                        <p>Create and manage custom tabs that will appear in the Jellyfin web interface.</p>
+
+                        <div id="customTabsList" class="paperList"></div>
+
+                        <div style="margin-top: 1em;">
+                            <button type="button" is="emby-button" class="raised button-submit block" id="addTab">
+                                <span>Add Custom Tab</span>
+                            </button>
+                        </div>
+
+                        <br />
+                        <div>
+                            <button is="emby-button" type="submit" class="raised button-submit block">
+                                <span>Save</span>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <template id="customTabTemplate">
+            <div class="listItem" style="padding: 1em; border: 1px solid #ccc; border-radius: 5px; margin-bottom: 1em;">
+                <div class="listItemBody">
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="tabName">Name:</label>
+                        <input is="emby-input" type="text" class="tabName" required />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="tabUrl">URL:</label>
+                        <input is="emby-input" type="text" class="tabUrl" required />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="tabIcon">Icon:</label>
+                        <select is="emby-select" class="tabIcon">
+                            <option value="link">Link</option>
+                            <option value="home">Home</option>
+                            <option value="movie">Movie</option>
+                            <option value="tv">TV</option>
+                            <option value="music_note">Music</option>
+                            <option value="videocam">Camera</option>
+                            <option value="photo">Photo</option>
+                            <option value="folder">Folder</option>
+                            <option value="settings">Settings</option>
+                            <option value="info">Info</option>
+                            <option value="favorite">Favorite</option>
+                            <option value="dashboard">Dashboard</option>
+                            <option value="extension">Extension</option>
+                            <option value="library_music">Music Library</option>
+                            <option value="people">People</option>
+                            <option value="person">Person</option>
+                            <option value="public">Public</option>
+                            <option value="rss_feed">RSS Feed</option>
+                            <option value="search">Search</option>
+                            <option value="sync">Sync</option>
+                            <option value="theaters">Theaters</option>
+                            <option value="view_list">List</option>
+                            <option value="web">Web</option>
+                            <option value="code">Code</option>
+                            <option value="dvr">DVR</option>
+                            <option value="games">Games</option>
+                            <option value="language">Language</option>
+                            <option value="library_books">Books</option>
+                            <option value="new_releases">New Releases</option>
+                            <option value="video_library">Video Library</option>
+                        </select>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input type="checkbox" is="emby-checkbox" class="tabOpenInNewTab" />
+                            <span>Open in new tab</span>
+                        </label>
+                    </div>
+                </div>
+                <button type="button" is="emby-button" class="fab mini removeTab" title="Remove" style="margin-left: 1em;">
+                    <span class="material-icons delete_outline"></span>
+                </button>
+            </div>
+        </template>
+
+        <script>
+            // Define Material Icon options for select dropdown
+            // Icons are from: https://fonts.google.com/icons?selected=Material+Icons
+
+            // Helper function to create a custom tab element
+            function createCustomTabElement(tab) {
+                var template = document.getElementById('customTabTemplate');
+                var tabElement = template.content.cloneNode(true).querySelector('.listItem');
+                
+                var nameInput = tabElement.querySelector('.tabName');
+                var urlInput = tabElement.querySelector('.tabUrl');
+                var iconSelect = tabElement.querySelector('.tabIcon');
+                var openInNewTabCheckbox = tabElement.querySelector('.tabOpenInNewTab');
+                
+                nameInput.value = tab.Name || '';
+                urlInput.value = tab.Url || '';
+                iconSelect.value = tab.Icon || 'link';
+                openInNewTabCheckbox.checked = tab.OpenInNewTab || false;
+                
+                tabElement.querySelector('.removeTab').addEventListener('click', function() {
+                    tabElement.parentNode.removeChild(tabElement);
+                });
+                
+                return tabElement;
+            }
+
+            // Page load event
+            document.querySelector('#CustomTabsConfigPage').addEventListener('pageshow', function() {
+                var page = this;
+
+                // Get plugin configuration
+                ApiClient.getPluginConfiguration('1d46a759-264a-4e58-aa39-a733a9129731').then(function(config) {
+                    var customTabsList = page.querySelector('#customTabsList');
+                    customTabsList.innerHTML = '';
+                    
+                    if (config.CustomTabs && config.CustomTabs.length > 0) {
+                        config.CustomTabs.forEach(function(tab) {
+                            customTabsList.appendChild(createCustomTabElement(tab));
+                        });
+                    }
+                });
+
+                // Add tab button
+                page.querySelector('#addTab').addEventListener('click', function() {
+                    var customTabsList = page.querySelector('#customTabsList');
+                    var newTab = {
+                        Name: '',
+                        Url: '',
+                        Icon: 'link',
+                        OpenInNewTab: false
+                    };
+                    
+                    customTabsList.appendChild(createCustomTabElement(newTab));
+                });
+
+                // Form submit
+                page.querySelector('form').addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    // Gather all tabs
+                    var customTabs = [];
+                    var tabElements = page.querySelectorAll('#customTabsList .listItem');
+                    
+                    tabElements.forEach(function(tabElement) {
+                        var nameInput = tabElement.querySelector('.tabName');
+                        var urlInput = tabElement.querySelector('.tabUrl');
+                        var iconSelect = tabElement.querySelector('.tabIcon');
+                        var openInNewTabCheckbox = tabElement.querySelector('.tabOpenInNewTab');
+                        
+                        // Skip tabs with empty name or URL
+                        if (!nameInput.value || !urlInput.value) {
+                            return;
+                        }
+                        
+                        customTabs.push({
+                            Name: nameInput.value,
+                            Url: urlInput.value,
+                            Icon: iconSelect.value,
+                            OpenInNewTab: openInNewTabCheckbox.checked
+                        });
+                    });
+                    
+                    // Save configuration
+                    ApiClient.getPluginConfiguration('1d46a759-264a-4e58-aa39-a733a9129731').then(function(config) {
+                        config.CustomTabs = customTabs;
+                        
+                        ApiClient.updatePluginConfiguration('1d46a759-264a-4e58-aa39-a733a9129731', config).then(function() {
+                            Dashboard.processPluginConfigurationUpdateResult();
+                        });
+                    });
+                });
+            });
+        </script>
+    </div>
+</body>
+</html>
