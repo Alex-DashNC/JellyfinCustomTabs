@@ -1,0 +1,19 @@
+# Plugin build manifest for Jellyfin
+# https://jellyfin.org/docs/general/server/plugins/manifest
+
+name: "Custom Tabs"
+guid: "1d46a759-264a-4e58-aa39-a733a9129731"
+version: "1.0.0.0"
+targetAbi: "10.8.0.0"
+framework: "net6.0"
+overview: "Create custom tabs in the Jellyfin web interface through a GUI"
+description: >
+  This plugin allows users to create and manage custom tabs in the Jellyfin web interface
+  through an easy-to-use GUI. You can configure tab name, URL, icon, and whether to open
+  in a new tab. Each user can have their own custom tabs configuration.
+category: "General"
+owner: "yourusername"
+artifacts:
+  - "Jellyfin.Plugin.CustomTabs.dll"
+changelog: >
+  Initial release

@@ -11,6 +11,9 @@
                     <div class="verticalSection verticalSection-extrabottompadding">
                         <h2 class="sectionTitle">Custom Tabs Configuration</h2>
                         <p>Create and manage custom tabs that will appear in the Jellyfin web interface.</p>
+                        <div class="paperList" style="padding: 1em; margin-bottom: 1em;">
+                            <p>Custom tabs will be visible to all users of your Jellyfin server. Changes may require a page refresh to take effect.</p>
+                        </div>
 
                         <div id="customTabsList" class="paperList"></div>
 
@@ -91,9 +94,6 @@
         </template>
 
         <script>
-            // Define Material Icon options for select dropdown
-            // Icons are from: https://fonts.google.com/icons?selected=Material+Icons
-
             // Helper function to create a custom tab element
             function createCustomTabElement(tab) {
                 var template = document.getElementById('customTabTemplate');
@@ -176,6 +176,7 @@
                     ApiClient.getPluginConfiguration('1d46a759-264a-4e58-aa39-a733a9129731').then(function(config) {
                         config.CustomTabs = customTabs;
                         
+                        // Save to plugin configuration - server will update the shared tabs file
                         ApiClient.updatePluginConfiguration('1d46a759-264a-4e58-aa39-a733a9129731', config).then(function() {
                             Dashboard.processPluginConfigurationUpdateResult();
                         });

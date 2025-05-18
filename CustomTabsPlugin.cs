@@ -3,11 +3,15 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using System.IO;
+using System.Text;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
 using MediaBrowser.Controller.Configuration;
+using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Serialization;
 using Microsoft.Extensions.Logging;
@@ -21,6 +25,7 @@ namespace Jellyfin.Plugin.CustomTabs
     {
         private readonly ILogger<CustomTabsPlugin> _logger;
         private readonly IServerConfigurationManager _configManager;
+        private readonly ISessionManager _sessionManager;
         private readonly IXmlSerializer _xmlSerializer;
 
         /// <summary>
@@ -30,18 +35,24 @@ namespace Jellyfin.Plugin.CustomTabs
         /// <param name="xmlSerializer">Instance of the <see cref="IXmlSerializer"/> interface.</param>
         /// <param name="logger">The logger.</param>
         /// <param name="configurationManager">The server configuration manager.</param>
+        /// <param name="sessionManager">The session manager.</param>
         public CustomTabsPlugin(
             IApplicationPaths applicationPaths,
             IXmlSerializer xmlSerializer,
             ILogger<CustomTabsPlugin> logger,
-            IServerConfigurationManager configurationManager)
+            IServerConfigurationManager configurationManager,
+            ISessionManager sessionManager)
             : base(applicationPaths, xmlSerializer)
         {
             _logger = logger;
             _configManager = configurationManager;
+            _sessionManager = sessionManager;
             _xmlSerializer = xmlSerializer;
             
             Instance = this;
+            
+            // Update the shared tabs file when the plugin starts
+            UpdateSharedTabsFile();
         }
 
         /// <summary>
@@ -71,58 +82,39 @@ namespace Jellyfin.Plugin.CustomTabs
         /// Sets the plugin's configuration.
         /// </summary>
         /// <param name="configuration">The configuration.</param>
-        public void UpdateConfiguration(PluginConfiguration configuration)
+        public async Task UpdateConfiguration(PluginConfiguration configuration)
         {
             Configuration = configuration;
             SaveConfiguration();
             
-            // Update the web client config file
-            UpdateWebClientConfiguration();
+            // Update the shared tabs file
+            UpdateSharedTabsFile();
+            
+            // Send message to clients to refresh
+            try {
+                await _sessionManager.SendMessageToSessions(new SessionMessageType[] 
+                { 
+                    SessionMessageType.ForceKeepAlive
+                }, 
+                "Custom tabs configuration has been updated. Please refresh your browser to see changes.", 
+                CancellationToken.None);
+                
+                _logger.LogInformation("Sent refresh message to clients");
+            }
+            catch (Exception ex) {
+                _logger.LogError(ex, "Error sending refresh message to clients");
+            }
         }
-
+        
         /// <summary>
-        /// Updates the web client configuration file with the custom tabs.
+        /// Updates the shared tabs file with the current configuration.
         /// </summary>
-        private void UpdateWebClientConfiguration()
+        private void UpdateSharedTabsFile()
         {
             try
             {
-                // Get path to web client config file
-                string webClientConfigPath = Path.Combine(
-                    _configManager.ApplicationPaths.ProgramDataPath,
-                    "config", 
-                    "config.json");
-                
-                // Create config directory if it doesn't exist
-                string configDir = Path.GetDirectoryName(webClientConfigPath);
-                if (!Directory.Exists(configDir))
-                {
-                    Directory.CreateDirectory(configDir);
-                }
-                
-                // Read existing config or create a new one
-                Dictionary<string, object> config;
-                if (File.Exists(webClientConfigPath))
-                {
-                    string configJson = File.ReadAllText(webClientConfigPath);
-                    try
-                    {
-                        config = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(configJson)
-                                 ?? new Dictionary<string, object>();
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error deserializing web client config");
-                        config = new Dictionary<string, object>();
-                    }
-                }
-                else
-                {
-                    config = new Dictionary<string, object>();
-                }
-                
-                // Convert custom tabs to the format expected by the web client
-                var customTabs = Configuration.CustomTabs.Select(tab => new
+                // Format tabs for web client
+                var webClientTabs = Configuration.CustomTabs.Select(tab => new
                 {
                     name = tab.Name,
                     url = tab.Url,
@@ -130,22 +122,24 @@ namespace Jellyfin.Plugin.CustomTabs
                     openInNewTab = tab.OpenInNewTab
                 }).ToList();
                 
-                // Update the customTabs property
-                config["customTabs"] = customTabs;
+                // Convert to JSON
+                string tabsJson = System.Text.Json.JsonSerializer.Serialize(webClientTabs, 
+                    new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
                 
-                // Write the updated config back to the file
-                string updatedConfig = System.Text.Json.JsonSerializer.Serialize(config, new System.Text.Json.JsonSerializerOptions
-                {
-                    WriteIndented = true
-                });
+                // Determine path for shared tabs file
+                string scriptsPath = Path.Combine(_configManager.ApplicationPaths.WebPath, "scripts", "customtabs");
+                Directory.CreateDirectory(scriptsPath);
                 
-                File.WriteAllText(webClientConfigPath, updatedConfig);
+                string sharedTabsPath = Path.Combine(scriptsPath, "shared-tabs.json");
                 
-                _logger.LogInformation("Updated web client config with custom tabs");
+                // Write to the file
+                File.WriteAllText(sharedTabsPath, tabsJson);
+                
+                _logger.LogInformation("Updated shared tabs file with {Count} tabs", webClientTabs.Count);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error updating web client configuration");
+                _logger.LogError(ex, "Error updating shared tabs file");
             }
         }
 

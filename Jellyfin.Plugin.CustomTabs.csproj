@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Configuration\configPage.html" />
+    <EmbeddedResource Include="Resources\client-side-script.js" />
   </ItemGroup>
 
 </Project>
